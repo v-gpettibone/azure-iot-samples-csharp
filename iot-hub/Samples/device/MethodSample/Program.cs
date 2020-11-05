@@ -32,6 +32,9 @@ namespace Microsoft.Azure.Devices.Client.Samples
             var deviceClient = DeviceClient.CreateFromConnectionString(
                 parameters.PrimaryConnectionString,
                 parameters.TransportType);
+
+            MethodSample.PrintLogWithTime($"Using protocol: {parameters.TransportType}");
+
             var sample = new MethodSample(deviceClient);
             await sample.RunSampleAsync();
 

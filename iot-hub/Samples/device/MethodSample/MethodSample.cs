@@ -13,6 +13,7 @@ namespace Microsoft.Azure.Devices.Client.Samples
 {
     public class MethodSample
     {
+        private readonly TimeSpan _sleepTime = TimeSpan.FromSeconds(10);
         private readonly DeviceClient _deviceClient;
 
         private class DeviceData
@@ -40,20 +41,20 @@ namespace Microsoft.Azure.Devices.Client.Samples
                 GetDeviceNameAsync,
                 new DeviceData { Name = "DeviceClientMethodSample" });
 
-            Console.WriteLine("Press Control+C to quit the sample.");
+            PrintLogWithTime("Press Control+C to quit the sample.\n");
             using var cts = new CancellationTokenSource();
             Console.CancelKeyPress += (sender, eventArgs) =>
             {
                 eventArgs.Cancel = true;
                 cts.Cancel();
-                Console.WriteLine("Sample execution cancellation requested; will exit.");
+                PrintLogWithTime("Sample execution cancellation requested; will exit.");
             };
 
             var waitTime = TimeSpan.FromMinutes(5);
             var timer = Stopwatch.StartNew();
-            Console.WriteLine($"Use the IoT Hub Azure Portal to call methods GetDeviceName or WriteToConsole within this time.");
+            PrintLogWithTime("Use the IoT Hub Azure Portal to call methods GetDeviceName or WriteToConsole within this time.");
 
-            Console.WriteLine($"Waiting up to {waitTime} for IoT Hub method calls ...");
+            PrintLogWithTime($"Waiting up to {waitTime} for IoT Hub method calls ...");
             while (!cts.IsCancellationRequested
                 && timer.Elapsed < waitTime)
             {
@@ -63,21 +64,28 @@ namespace Microsoft.Azure.Devices.Client.Samples
 
         private void ConnectionStatusChangeHandler(ConnectionStatus status, ConnectionStatusChangeReason reason)
         {
-            Console.WriteLine($"\nConnection status changed to {status}.");
-            Console.WriteLine($"Connection status changed reason is {reason}.\n");
+            PrintLogWithTime($"Connection status changed: status={status}, reason={reason}.\n");
         }
 
-        private Task<MethodResponse> WriteToConsoleAsync(MethodRequest methodRequest, object userContext)
+        private async Task<MethodResponse> WriteToConsoleAsync(MethodRequest methodRequest, object userContext)
         {
-            Console.WriteLine($"\t *** {methodRequest.Name} was called.");
-            Console.WriteLine($"\t{methodRequest.DataAsJson}\n");
+            PrintLogWithTime($"*** {methodRequest.Name} was called.");
 
-            return Task.FromResult(new MethodResponse(new byte[0], 200));
+            PrintLogWithTime($"Now sleeping for {_sleepTime} from {nameof(WriteToConsoleAsync)}");
+            await Task.Delay(_sleepTime);
+            PrintLogWithTime($"Done sleeping from {nameof(WriteToConsoleAsync)}");
+
+            PrintLogWithTime($"Exiting {nameof(WriteToConsoleAsync)}");
+            return new MethodResponse(new byte[0], 200);
         }
 
-        private Task<MethodResponse> GetDeviceNameAsync(MethodRequest methodRequest, object userContext)
+        private async Task<MethodResponse> GetDeviceNameAsync(MethodRequest methodRequest, object userContext)
         {
-            Console.WriteLine($"\t *** {methodRequest.Name} was called.");
+            PrintLogWithTime($"*** {methodRequest.Name} was called.");
+
+            PrintLogWithTime($"Now sleeping for {_sleepTime} from {nameof(GetDeviceNameAsync)}");
+            await Task.Delay(_sleepTime);
+            PrintLogWithTime($"Done sleeping from {nameof(GetDeviceNameAsync)}");
 
             MethodResponse retValue;
             if (userContext == null)
@@ -91,7 +99,13 @@ namespace Microsoft.Azure.Devices.Client.Samples
                 retValue = new MethodResponse(Encoding.UTF8.GetBytes(result), 200);
             }
 
-            return Task.FromResult(retValue);
+            PrintLogWithTime($"Exiting {nameof(GetDeviceNameAsync)}");
+            return retValue;
+        }
+
+        internal static void PrintLogWithTime(string formattedMessage)
+        {
+            Console.WriteLine($"{DateTime.Now}> {formattedMessage}");
         }
     }
 }
