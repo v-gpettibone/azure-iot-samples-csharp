@@ -14,17 +14,17 @@ namespace Microsoft.Azure.Devices.Client.Samples
     public class DeviceStreamSample
     {
         private readonly ServiceClient _serviceClient;
-        private readonly SampleDevice _sampleDevice;
+        private readonly string _deviceId;
         private readonly DeviceClient _deviceClient;
         private readonly ILogger _logger;
 
-        public DeviceStreamSample(ServiceClient serviceClient, SampleDevice sampleDevice, TransportType transportType, ILogger logger)
+        public DeviceStreamSample(ServiceClient serviceClient, string deviceId, DeviceClient deviceClient, ILogger logger)
         {
             _logger = logger;
 
             _serviceClient = serviceClient;
-            _sampleDevice = sampleDevice;
-            _deviceClient = sampleDevice.CreateDeviceClient(transportType);
+            _deviceId = deviceId;
+            _deviceClient = deviceClient;
 
             _deviceClient.SetConnectionStatusChangesHandler((status, reason) =>
             {
@@ -37,7 +37,7 @@ namespace Microsoft.Azure.Devices.Client.Samples
             using var cts = new CancellationTokenSource(TimeSpan.FromMinutes(30));
 
             Task<DeviceStreamRequest> clientRequestTask = _deviceClient.WaitForDeviceStreamRequestAsync(cts.Token);
-            Task<Devices.DeviceStreamResponse> serviceRequestTask = _serviceClient.CreateStreamAsync(_sampleDevice.Id, new Devices.DeviceStreamRequest("blah"));
+            Task<Devices.DeviceStreamResponse> serviceRequestTask = _serviceClient.CreateStreamAsync(_deviceId, new Devices.DeviceStreamRequest("blah"));
 
             DeviceStreamRequest clientRequest = await clientRequestTask;
 

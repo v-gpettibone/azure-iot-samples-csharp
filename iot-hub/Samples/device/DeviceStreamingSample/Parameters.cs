@@ -13,7 +13,14 @@ namespace Microsoft.Azure.Devices.Client.Samples
             "IotHubConnectionString",
             Required = true,
             HelpText = "The primary connection string for the IoT Hub instance to connect to.")]
-        public string PrimaryConnectionString { get; set; }
+        public string IotHubConnectionString { get; set; }
+
+        [Option(
+            'd',
+            "DeviceConnectionString",
+            Required = true,
+            HelpText = "The connection string for the device to simulate.")]
+        public string DeviceConnectionString { get; set; }
 
         [Option(
             't',

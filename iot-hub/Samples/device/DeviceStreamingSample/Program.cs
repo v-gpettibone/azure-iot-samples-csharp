@@ -44,10 +44,13 @@ namespace Microsoft.Azure.Devices.Client.Samples
             // Instantiating this seems to do all we need for outputting SDK events to our console log
             _ = new ConsoleEventListener(SdkEventProviderPrefix, logger);
 
-            var sampleDevice = await SampleDevice.GetTestDeviceAsync(logger, "DeviceStreamingDevice_", parameters.PrimaryConnectionString);
-            using var serviceClient = ServiceClient.CreateFromConnectionString(parameters.PrimaryConnectionString);
+            using var serviceClient = ServiceClient.CreateFromConnectionString(parameters.IotHubConnectionString);
+            using var deviceClient = DeviceClient.CreateFromConnectionString(parameters.DeviceConnectionString, parameters.TransportType);
+            string deviceId = IotHubConnectionStringBuilder.Create(parameters.DeviceConnectionString).DeviceId;
 
-            var sample = new DeviceStreamSample(serviceClient, sampleDevice, parameters.TransportType, logger);
+            logger.LogDebug($"Using deviceId={deviceId}, transport={parameters.TransportType}");
+
+            var sample = new DeviceStreamSample(serviceClient, deviceId, deviceClient, logger);
             await sample.RunSampleAsync();
 
             Console.WriteLine("Done.");
