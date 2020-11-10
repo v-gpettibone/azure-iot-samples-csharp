@@ -2,12 +2,14 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using CommandLine;
+using Microsoft.Azure.Devices.Logging;
+using Microsoft.Extensions.Logging;
 using System;
 using System.Threading.Tasks;
 
 namespace Microsoft.Azure.Devices.Client.Samples
 {
-    public static class Program
+    public class Program
     {
         /// <summary>
         /// A sample to illustrate device streaming.
@@ -29,10 +31,23 @@ namespace Microsoft.Azure.Devices.Client.Samples
                     Environment.Exit(1);
                 });
 
-            using var deviceClient = DeviceClient.CreateFromConnectionString(
-                parameters.PrimaryConnectionString,
-                parameters.TransportType);
-            var sample = new DeviceStreamSample(deviceClient);
+            // Set up logging
+            ILoggerFactory loggerFactory = new LoggerFactory();
+            loggerFactory.AddColorConsoleLogger(
+                new ColorConsoleLoggerConfiguration
+                {
+                    MinLogLevel = LogLevel.Debug,
+                });
+            var logger = loggerFactory.CreateLogger<Program>();
+
+            const string SdkEventProviderPrefix = "Microsoft-Azure-";
+            // Instantiating this seems to do all we need for outputting SDK events to our console log
+            _ = new ConsoleEventListener(SdkEventProviderPrefix, logger);
+
+            var sampleDevice = await SampleDevice.GetTestDeviceAsync(logger, "DeviceStreamingDevice_", parameters.PrimaryConnectionString);
+            using var serviceClient = ServiceClient.CreateFromConnectionString(parameters.PrimaryConnectionString);
+
+            var sample = new DeviceStreamSample(serviceClient, sampleDevice, parameters.TransportType, logger);
             await sample.RunSampleAsync();
 
             Console.WriteLine("Done.");

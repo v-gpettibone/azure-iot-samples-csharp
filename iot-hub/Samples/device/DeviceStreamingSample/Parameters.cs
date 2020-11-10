@@ -9,10 +9,10 @@ namespace Microsoft.Azure.Devices.Client.Samples
     internal class Parameters
     {
         [Option(
-            'p',
-            "PrimaryConnectionString",
+            'i',
+            "IotHubConnectionString",
             Required = true,
-            HelpText = "The primary connection string for the device to simulate.")]
+            HelpText = "The primary connection string for the IoT Hub instance to connect to.")]
         public string PrimaryConnectionString { get; set; }
 
         [Option(

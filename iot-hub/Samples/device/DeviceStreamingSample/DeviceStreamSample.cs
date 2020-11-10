@@ -7,54 +7,101 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Azure.Devices.Samples.Common;
+using Microsoft.Extensions.Logging;
 
 namespace Microsoft.Azure.Devices.Client.Samples
 {
     public class DeviceStreamSample
     {
+        private readonly ServiceClient _serviceClient;
+        private readonly SampleDevice _sampleDevice;
         private readonly DeviceClient _deviceClient;
+        private readonly ILogger _logger;
 
-        public DeviceStreamSample(DeviceClient deviceClient)
+        public DeviceStreamSample(ServiceClient serviceClient, SampleDevice sampleDevice, TransportType transportType, ILogger logger)
         {
-            _deviceClient = deviceClient;
+            _logger = logger;
+
+            _serviceClient = serviceClient;
+            _sampleDevice = sampleDevice;
+            _deviceClient = sampleDevice.CreateDeviceClient(transportType);
+
+            _deviceClient.SetConnectionStatusChangesHandler((status, reason) =>
+            {
+                logger.LogDebug($">>> Connection status changed: status={status}, reason={reason}");
+            });
         }
 
-        public async Task RunSampleAsync(bool acceptDeviceStreamingRequest = true)
+        public async Task RunSampleAsync()
         {
-            var buffer = new byte[1024];
+            using var cts = new CancellationTokenSource(TimeSpan.FromMinutes(30));
 
-            using var cts = new CancellationTokenSource(TimeSpan.FromMinutes(5));
+            Task<DeviceStreamRequest> clientRequestTask = _deviceClient.WaitForDeviceStreamRequestAsync(cts.Token);
+            Task<Devices.DeviceStreamResponse> serviceRequestTask = _serviceClient.CreateStreamAsync(_sampleDevice.Id, new Devices.DeviceStreamRequest("blah"));
 
-            DeviceStreamRequest streamRequest = await _deviceClient.WaitForDeviceStreamRequestAsync(cts.Token);
+            DeviceStreamRequest clientRequest = await clientRequestTask;
 
-            if (streamRequest != null)
+            if (clientRequest != null)
             {
-                if (!acceptDeviceStreamingRequest)
-                {
-                    await _deviceClient.RejectDeviceStreamRequestAsync(streamRequest, cts.Token);
-                }
-                else
-                {
-                    await _deviceClient.AcceptDeviceStreamRequestAsync(streamRequest, cts.Token);
+                _logger.LogInformation($"Device streaming request received " +
+                    $"(name={clientRequest.Name}; " +
+                    $"uri={clientRequest.Uri}; " +
+                    $"authToken={clientRequest.AuthorizationToken})");
 
-                    using ClientWebSocket webSocket = await DeviceStreamingCommon.GetStreamingClientAsync(
-                        streamRequest.Url,
-                        streamRequest.AuthorizationToken,
-                        cts.Token);
+                await _deviceClient.AcceptDeviceStreamRequestAsync(clientRequest, cts.Token);
 
-                    WebSocketReceiveResult receiveResult = await webSocket
-                        .ReceiveAsync(new ArraySegment<byte>(buffer, 0, buffer.Length), cts.Token);
-                    Console.WriteLine("Received stream data: {0}", Encoding.UTF8.GetString(buffer, 0, receiveResult.Count));
+                Devices.DeviceStreamResponse serviceResponse = await serviceRequestTask;
 
-                    await webSocket.SendAsync(
-                        new ArraySegment<byte>(buffer, 0, receiveResult.Count),
-                        WebSocketMessageType.Binary,
-                        true,
-                        cts.Token);
-                    Console.WriteLine("Sent stream data: {0}", Encoding.UTF8.GetString(buffer, 0, receiveResult.Count));
+                _logger.LogInformation($"Device streaming response received " +
+                    $"(name={serviceResponse.StreamName}; " +
+                    $"accepted={serviceResponse.IsAccepted}; " +
+                    $"uri={serviceResponse.Uri}; " +
+                    $"authToken={serviceResponse.AuthorizationToken})");
 
-                    await webSocket.CloseAsync(WebSocketCloseStatus.NormalClosure, string.Empty, cts.Token);
-                }
+                _logger.LogInformation("Now testing if we can echo information through the streaming gateway");
+
+                Task<ClientWebSocket> deviceWSClientTask = DeviceStreamingCommon
+                    .GetStreamingClientAsync(clientRequest.Uri, clientRequest.AuthorizationToken, cts.Token);
+                Task<ClientWebSocket> serviceWSClientTask = DeviceStreamingCommon
+                    .GetStreamingClientAsync(serviceResponse.Uri, serviceResponse.AuthorizationToken, cts.Token);
+
+                await Task.WhenAll(deviceWSClientTask, serviceWSClientTask).ConfigureAwait(false);
+
+                ClientWebSocket deviceWSClient = deviceWSClientTask.Result;
+                ClientWebSocket serviceWSClient = serviceWSClientTask.Result;
+
+                byte[] serviceBuffer = Encoding.ASCII.GetBytes("This is a test message !!!@#$@$423423\r\n");
+                byte[] clientBuffer = new byte[serviceBuffer.Length];
+
+                await Task
+                    .WhenAll(
+                        serviceWSClient.SendAsync(new ArraySegment<byte>(serviceBuffer), WebSocketMessageType.Binary, true, cts.Token),
+                        deviceWSClient.ReceiveAsync(new ArraySegment<byte>(clientBuffer), cts.Token).ContinueWith((wsrr) =>
+                        {
+                            _logger.LogInformation($"Received stream data by device ws client: {Encoding.UTF8.GetString(clientBuffer)}");
+                        }, TaskScheduler.Current))
+                    .ConfigureAwait(false);
+
+                await Task
+                    .WhenAll(
+                        deviceWSClient.SendAsync(new ArraySegment<byte>(clientBuffer), WebSocketMessageType.Binary, true, cts.Token),
+                        serviceWSClient.ReceiveAsync(new ArraySegment<byte>(serviceBuffer), cts.Token).ContinueWith((wsrr) =>
+                        {
+                            _logger.LogInformation($"Received stream data by service ws client: {Encoding.UTF8.GetString(serviceBuffer)}");
+                        }, TaskScheduler.Current))
+                    .ConfigureAwait(false);
+
+                await Task
+                    .WhenAll(
+                        deviceWSClient.CloseAsync(WebSocketCloseStatus.NormalClosure, "End of test", cts.Token),
+                        serviceWSClient.CloseAsync(WebSocketCloseStatus.NormalClosure, "End of test", cts.Token))
+                    .ConfigureAwait(false);
+
+                deviceWSClient.Dispose();
+                serviceWSClient.Dispose();
+
+                _deviceClient.Dispose();
+                _serviceClient.Dispose();
             }
         }
     }
