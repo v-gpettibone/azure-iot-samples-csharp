@@ -23,6 +23,8 @@ namespace SimulatedDevice
         // az iot hub device-identity show-connection-string --hub-name {YourIoTHubName} --device-id MyDotnetDevice --output table
         private static string s_connectionString = "{Your device connection string here}";
 
+        private static int s_telemetryInterval = 1; // Seconds
+
         private static async Task Main(string[] args)
         {
             Console.WriteLine("IoT Hub Quickstarts #1 - Simulated device.");
@@ -59,22 +61,20 @@ namespace SimulatedDevice
             }
         }
 
-        private static int s_telemetryInterval = 1; // Seconds
-
         // Handle the direct method call
         private static Task<MethodResponse> SetTelemetryInterval(MethodRequest methodRequest, object userContext)
         {
             var data = Encoding.UTF8.GetString(methodRequest.Data);
 
             // Check the payload is a single integer value
-            if (Int32.TryParse(data, out s_telemetryInterval))
+            if (int.TryParse(data, out s_telemetryInterval))
             {
                 Console.ForegroundColor = ConsoleColor.Green;
-                Console.WriteLine("Telemetry interval set to {0} seconds", data);
+                Console.WriteLine($"Telemetry interval set to {data} seconds");
                 Console.ResetColor();
 
                 // Acknowlege the direct method call with a 200 success message
-                string result = "{\"result\":\"Executed direct method: " + methodRequest.Name + "\"}";
+                string result = $"{{\"result\":\"Executed direct method: {methodRequest.Name}\"}}";
                 return Task.FromResult(new MethodResponse(Encoding.UTF8.GetBytes(result), 200));
             }
             else
